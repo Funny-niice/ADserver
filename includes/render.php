@@ -1,0 +1,153 @@
+<?php
+declare(strict_types=1);
+
+require_once __DIR__ . '/config.php';
+
+function escape_html($value): string
+{
+    return htmlspecialchars($value, ENT_QUOTES, 'UTF-8');
+}
+
+function canonical_url(string $path): string
+{
+    if ($path === '') {
+        $path = '/';
+    }
+
+    return SITE_ORIGIN . '/' . ltrim($path, '/');
+}
+
+function render_header(array $page): void
+{
+    $pageTitle = $page['title'] === SITE_NAME ? SITE_NAME : $page['title'] . ' | ' . SITE_NAME;
+    $pageAllowsAds = isset($page['allow_ads']) && $page['allow_ads'] === true;
+    $GLOBALS['pageAllowsAds'] = $pageAllowsAds;
+    $navigation = [
+        ['label' => 'Home', 'url' => '/'],
+        ['label' => 'Guides', 'url' => '/guides/'],
+        ['label' => 'Heroes', 'url' => '/heroes/'],
+        ['label' => 'Bosses', 'url' => '/bosses/'],
+        ['label' => 'Worlds', 'url' => '/worlds/'],
+        ['label' => 'FAQ', 'url' => '/faq/'],
+        ['label' => 'Play', 'url' => '/play/'],
+    ];
+    ?>
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title><?= escape_html($pageTitle) ?></title>
+    <meta name="description" content="<?= escape_html($page['description']) ?>">
+    <?php if (isset($page['robots']) && $page['robots'] !== ''): ?>
+    <meta name="robots" content="<?= escape_html($page['robots']) ?>">
+    <?php endif; ?>
+    <meta name="google-adsense-account" content="<?= escape_html(ADSENSE_PUBLISHER_ID) ?>">
+    <link rel="canonical" href="<?= escape_html(canonical_url($page['canonical'])) ?>">
+    <link rel="stylesheet" href="/assets/site.css">
+    <script src="/assets/site.js" defer></script>
+</head>
+<body>
+<a class="skip-link" href="#main-content">Skip to main content</a>
+<header class="site-header" data-site-header>
+    <div class="container header-inner">
+        <a class="site-brand" href="/"><?= escape_html(SITE_NAME) ?></a>
+        <button class="nav-toggle" type="button" data-nav-toggle aria-expanded="false" aria-controls="site-navigation">
+            <span class="sr-only">Toggle navigation</span>
+            <span aria-hidden="true">Menu</span>
+        </button>
+        <nav class="site-nav" id="site-navigation" aria-label="Primary navigation">
+            <ul>
+                <?php foreach ($navigation as $item): ?>
+                    <li><a href="<?= escape_html($item['url']) ?>"><?= escape_html($item['label']) ?></a></li>
+                <?php endforeach; ?>
+            </ul>
+        </nav>
+    </div>
+</header>
+    <?php
+}
+
+function render_footer(): void
+{
+    $footerLinks = [
+        ['label' => 'About', 'url' => '/about/'],
+        ['label' => 'Contact', 'url' => '/contact/'],
+        ['label' => 'Privacy', 'url' => '/privacy/'],
+        ['label' => 'Terms', 'url' => '/terms/'],
+        ['label' => 'Updates', 'url' => '/updates/'],
+        ['label' => 'GitHub', 'url' => 'https://github.com/Funny-niice/ADserver'],
+    ];
+    ?>
+<footer class="site-footer">
+    <div class="container footer-inner">
+        <p>&copy; <?= escape_html(date('Y')) ?> <?= escape_html(SITE_NAME) ?></p>
+        <nav aria-label="Footer navigation">
+            <ul>
+                <?php foreach ($footerLinks as $item): ?>
+                    <li><a href="<?= escape_html($item['url']) ?>"><?= escape_html($item['label']) ?></a></li>
+                <?php endforeach; ?>
+            </ul>
+        </nav>
+    </div>
+</footer>
+</body>
+</html>
+    <?php
+}
+
+function render_breadcrumbs(array $items): void
+{
+    ?>
+<nav class="breadcrumbs" aria-label="Breadcrumb">
+    <ol>
+        <?php foreach ($items as $item): ?>
+            <li>
+                <?php if (isset($item['url'])): ?>
+                    <a href="<?= escape_html($item['url']) ?>"><?= escape_html($item['label']) ?></a>
+                <?php else: ?>
+                    <span aria-current="page"><?= escape_html($item['label']) ?></span>
+                <?php endif; ?>
+            </li>
+        <?php endforeach; ?>
+    </ol>
+</nav>
+    <?php
+}
+
+function render_card_grid(array $items, string $className = ''): void
+{
+    $classes = trim('card-grid ' . $className);
+    ?>
+<div class="<?= escape_html($classes) ?>">
+    <?php foreach ($items as $item): ?>
+        <article class="card">
+            <h2>
+                <?php if (isset($item['url'])): ?>
+                    <a href="<?= escape_html($item['url']) ?>"><?= escape_html($item['title']) ?></a>
+                <?php else: ?>
+                    <?= escape_html($item['title']) ?>
+                <?php endif; ?>
+            </h2>
+            <p><?= escape_html($item['summary']) ?></p>
+        </article>
+    <?php endforeach; ?>
+</div>
+    <?php
+}
+
+function render_ad_slot(string $slotName): void
+{
+    $pageAllowsAds = isset($GLOBALS['pageAllowsAds']) && $GLOBALS['pageAllowsAds'] === true;
+    if (!ADSENSE_DISPLAY_ENABLED || !$pageAllowsAds) {
+        return;
+    }
+    ?>
+<aside class="ad-slot" aria-label="Advertisement" data-ad-slot="<?= escape_html($slotName) ?>">
+    <ins class="adsbygoogle"
+         data-ad-client="<?= escape_html(ADSENSE_PUBLISHER_ID) ?>"
+         data-ad-format="auto"
+         data-full-width-responsive="true"></ins>
+</aside>
+    <?php
+}
