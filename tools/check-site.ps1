@@ -67,6 +67,49 @@ function Assert-FileContainsInOrder {
   }
 }
 
+function Assert-HomepageContentQuality {
+  $phpPath = Join-Path $root '.tools\php72\php.exe'
+  $indexPath = Join-Path $root 'index.php'
+  if (-not (Test-Path -LiteralPath $phpPath -PathType Leaf) -or -not (Test-Path -LiteralPath $indexPath -PathType Leaf)) {
+    return
+  }
+
+  $rendered = & $phpPath $indexPath 2>&1 | Out-String
+  if ($LASTEXITCODE -ne 0) {
+    $errors.Add('Homepage could not be rendered for content-quality checks.')
+    return
+  }
+
+  foreach ($cardType in @('hero', 'realm')) {
+    $expectedCount = if ($cardType -eq 'hero') { 6 } else { 10 }
+    $pattern = '<article class="card ' + $cardType + '-card">.*?<p>(.*?)</p>.*?</article>'
+    $matches = [regex]::Matches($rendered, $pattern, [System.Text.RegularExpressions.RegexOptions]::Singleline)
+    if ($matches.Count -ne $expectedCount) {
+      $errors.Add("Homepage must render $expectedCount ${cardType} cards with content summaries.")
+      continue
+    }
+
+    $summaries = @($matches | ForEach-Object {
+      $plainText = [regex]::Replace($_.Groups[1].Value, '<[^>]+>', ' ')
+      [System.Net.WebUtility]::HtmlDecode($plainText).Trim()
+    })
+    if (@($summaries | Select-Object -Unique).Count -ne $summaries.Count) {
+      $errors.Add("Homepage ${cardType} card summaries must be unique.")
+    }
+  }
+
+  $guideSection = [regex]::Match(
+    $rendered,
+    '<section class="container" aria-labelledby="guides-heading">(.*?)</section>',
+    [System.Text.RegularExpressions.RegexOptions]::Singleline
+  )
+  if (-not $guideSection.Success -or
+      [regex]::Matches($guideSection.Value, '<h2(?:\s|>)').Count -ne 1 -or
+      [regex]::Matches($guideSection.Value, '<h3(?:\s|>)').Count -ne 5) {
+    $errors.Add('Homepage guide section must use one H2 section heading and five H3 card headings.')
+  }
+}
+
 foreach ($page in $pages) {
   if (-not (Test-Path -LiteralPath (Join-Path $root $page) -PathType Leaf)) { $errors.Add("Missing page: $page") }
 }
@@ -180,6 +223,10 @@ Assert-FileContains 'index.php' @(
   'How the adventure works', 'Meet the heroes', 'Boss battles',
   'Explore ten sky realms', 'Player guides'
 )
+Assert-FileExcludes 'index.php' @(
+  'Consider what the current run needs before dividing coins',
+  'Continue clearing its normal encounters, invest battle earnings'
+)
 Assert-FileContains 'play/index.php' @(
   'class="game-frame"',
   'src="<?= htmlspecialchars(GAME_CLIENT_PATH, ENT_QUOTES, ''UTF-8'') ?>"'
@@ -187,6 +234,7 @@ Assert-FileContains 'play/index.php' @(
 Assert-FileExcludes 'play/index.php' @(
   'adsbygoogle', 'pagead2', 'render_ad_slot'
 )
+Assert-HomepageContentQuality
 
 foreach ($page in ($pages | Where-Object { $_ -ne '404.php' })) {
   $pagePath = Join-Path $root $page

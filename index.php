@@ -13,6 +13,28 @@ $page = [
     'allow_ads' => false,
 ];
 
+$heroHomepageCopy = [
+    'Swordsman' => 'Direct taps control this hero. The permanent 5% rebirth bonus applies to main-hero tap damage here, not to companion DPS.',
+    'Archer' => 'The first automatic attacker introduces progress that does not require a tap for every hit.',
+    'Mage' => 'Slow, heavy attacks give this companion a different rhythm from the Archer’s earlier automatic damage.',
+    'Paladin' => 'This dependable mid-game attacker arrives before the two later companions unlocked at stages 22 and 35.',
+    'Rogue' => 'Fast automatic attacks become available after the stage-20 rebirth threshold and shortly before the first recommended rebirth checkpoint.',
+    'Priest' => 'The final roster unlock supplies late-game automatic damage for runs that advance beyond every earlier hero requirement.',
+];
+
+$realmHomepageCopy = [
+    'Sunrise Fields' => 'The route opens in Sunrise Fields, whose name gives the first stretch a bright departure point.',
+    'Cloud Castle' => 'Cloud Castle moves the named journey upward from open fields to a fortress in the sky.',
+    'Mist Ruins' => 'Mist Ruins shifts the setting toward an older, weathered place obscured by its atmosphere.',
+    'Storm Bridge' => 'Storm Bridge marks the fourth stop with the image of a crossing exposed to rough weather.',
+    'Star Tower' => 'Star Tower closes the first half of the ten-realm list with a high celestial landmark.',
+    'Moon Archive' => 'Moon Archive opens the second half by pairing a night-sky theme with a place of records.',
+    'Thunder Forge' => 'Thunder Forge follows with a name that combines storm imagery and a place built for making.',
+    'Frost Crown' => 'Frost Crown turns the route toward cold, royal imagery as the final realms approach.',
+    'Void Gate' => 'Void Gate is the penultimate realm, framing the ninth stop as a threshold before the finale.',
+    'Sky Throne' => 'Sky Throne is the tenth and final named destination in the 200-stage journey.',
+];
+
 render_header($page);
 ?>
 <main id="main-content" class="site-main">
@@ -47,9 +69,9 @@ render_header($page);
         <p>The party combines one active hero with five automatic attackers. Their stage requirements create a dependable order, but their roles are not identical. Tap upgrades matter directly to the Swordsman, while companion upgrades build the automatic damage that continues without constant input.</p>
         <div class="card-grid">
             <?php foreach ($heroes as $hero): ?>
-                <article class="card">
+                <article class="card hero-card">
                     <h3><?= escape_html($hero['name']) ?></h3>
-                    <p><strong>Available from stage <?= escape_html((string) $hero['stage']) ?>.</strong> <?= escape_html($hero['role']) ?>. Consider what the current run needs before dividing coins between immediate tap strength and continuing automatic damage.</p>
+                    <p><strong>Available from stage <?= escape_html((string) $hero['stage']) ?>.</strong> <?= escape_html($hero['role']) ?>. <?= escape_html($heroHomepageCopy[$hero['name']]) ?></p>
                 </article>
             <?php endforeach; ?>
         </div>
@@ -68,9 +90,9 @@ render_header($page);
         <p>The 200-stage journey is divided across ten named realms. Together they give the run a visible route from the opening fields to the final throne. Realm names mark where the adventure is taking place; damage, upgrades, hero unlocks, and boss readiness remain the systems that determine whether the party advances.</p>
         <div class="card-grid">
             <?php foreach ($worlds as $number => $world): ?>
-                <article class="card">
+                <article class="card realm-card">
                     <h3><?= escape_html($world) ?></h3>
-                    <p>Realm <?= escape_html((string) ($number + 1)) ?> of 10. Continue clearing its normal encounters, invest battle earnings, and prepare for the boss that guards this part of the route.</p>
+                    <p><strong>Realm <?= escape_html((string) ($number + 1)) ?> of 10.</strong> <?= escape_html($realmHomepageCopy[$world]) ?></p>
                 </article>
             <?php endforeach; ?>
         </div>
@@ -80,7 +102,14 @@ render_header($page);
     <section class="container" aria-labelledby="guides-heading">
         <h2 id="guides-heading">Player guides</h2>
         <p>These five guides answer different progression questions. Begin with the rules if this is your first run, use the upgrading and boss guides when progress slows, check offline rewards before stepping away, and read the rebirth guide before resetting stage and hero progress.</p>
-        <?php render_card_grid($guides, 'guide-grid'); ?>
+        <div class="card-grid guide-grid">
+            <?php foreach ($guides as $guide): ?>
+                <article class="card">
+                    <h3><a href="<?= escape_html($guide['url']) ?>"><?= escape_html($guide['title']) ?></a></h3>
+                    <p><?= escape_html($guide['summary']) ?></p>
+                </article>
+            <?php endforeach; ?>
+        </div>
     </section>
 </main>
 <?php render_footer(); ?>
