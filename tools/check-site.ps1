@@ -110,6 +110,124 @@ function Assert-HomepageContentQuality {
   }
 }
 
+function Get-RenderedPage {
+  param([string]$RelativePath)
+
+  $phpPath = Join-Path $root '.tools\php72\php.exe'
+  $pagePath = Join-Path $root $RelativePath
+  if (-not (Test-Path -LiteralPath $phpPath -PathType Leaf) -or -not (Test-Path -LiteralPath $pagePath -PathType Leaf)) {
+    return $null
+  }
+
+  $rendered = & $phpPath $pagePath 2>&1 | Out-String
+  if ($LASTEXITCODE -ne 0) {
+    $errors.Add("Page could not be rendered for content-quality checks: $RelativePath")
+    return $null
+  }
+
+  return $rendered
+}
+
+function Get-PlainWordCount {
+  param([string]$Html)
+
+  $plainText = [regex]::Replace($Html, '<[^>]+>', ' ')
+  $plainText = [System.Net.WebUtility]::HtmlDecode($plainText)
+  return [regex]::Matches($plainText, "[A-Za-z0-9]+(?:['-][A-Za-z0-9]+)*").Count
+}
+
+function Assert-ReferencePageContentQuality {
+  $expectedRecords = @{
+    'heroes/index.php' = @('Swordsman','Archer','Mage','Paladin','Rogue','Priest')
+    'bosses/index.php' = @(
+      'Meadow Slime King','Cloud Gate Titan','Mist Rune Colossus','Storm Bridge Roc',
+      'Star Tower Hydra','Moon Archive Golem','Thunder Forge Djinn','Frost Crown Beast',
+      'Void Gate Dragon','Sky Throne Warden'
+    )
+    'worlds/index.php' = @(
+      'Sunrise Fields','Cloud Castle','Mist Ruins','Storm Bridge','Star Tower',
+      'Moon Archive','Thunder Forge','Frost Crown','Void Gate','Sky Throne'
+    )
+  }
+
+  foreach ($relativePath in $expectedRecords.Keys) {
+    $rendered = Get-RenderedPage $relativePath
+    if ($null -eq $rendered) {
+      $errors.Add("Reference content could not be checked: $relativePath")
+      continue
+    }
+    foreach ($record in $expectedRecords[$relativePath]) {
+      if (-not $rendered.Contains($record)) {
+        $errors.Add("Missing rendered reference record in ${relativePath}: $record")
+      }
+    }
+  }
+
+  $worldsRendered = Get-RenderedPage 'worlds/index.php'
+  if ($null -ne $worldsRendered) {
+    $worldCards = [regex]::Matches(
+      $worldsRendered,
+      '<article class="card world-card">\s*<h2>.*?</h2>\s*<p>(.*?)</p>\s*</article>',
+      [System.Text.RegularExpressions.RegexOptions]::Singleline
+    )
+    if ($worldCards.Count -ne 10) {
+      $errors.Add('Worlds page must render ten world cards with distinct descriptions.')
+    } else {
+      $descriptions = @()
+      foreach ($card in $worldCards) {
+        $description = [System.Net.WebUtility]::HtmlDecode(([regex]::Replace($card.Groups[1].Value, '<[^>]+>', ' '))).Trim()
+        $descriptions += $description
+        $wordCount = Get-PlainWordCount $card.Groups[1].Value
+        if ($wordCount -lt 60 -or $wordCount -gt 100) {
+          $errors.Add("World description must contain 60-100 words; found $wordCount words.")
+        }
+      }
+      if (@($descriptions | Select-Object -Unique).Count -ne 10) {
+        $errors.Add('Every world description must be distinct.')
+      }
+    }
+  }
+
+  $faqRendered = Get-RenderedPage 'faq/index.php'
+  if ($null -eq $faqRendered) {
+    $errors.Add('FAQ content could not be checked: faq/index.php')
+  } else {
+    $faqQuestions = @(
+      'Is Tiny Heroes Tap free to play?',
+      'Are ads mandatory?',
+      'What happens when I fail a boss battle?',
+      'Do I lose gold or progress when a boss defeats me?',
+      'When do heroes unlock?',
+      'How do offline rewards work?',
+      'When does rebirth become available?',
+      'What does rebirth reset, and what do I keep?',
+      'Where is my progress stored?',
+      'Which devices and browsers are supported?'
+    )
+    foreach ($question in $faqQuestions) {
+      if (-not $faqRendered.Contains("<summary>$question</summary>")) {
+        $errors.Add("Missing FAQ question: $question")
+      }
+    }
+
+    $answers = [regex]::Matches(
+      $faqRendered,
+      '<details>\s*<summary>.*?</summary>\s*<p>(.*?)</p>\s*</details>',
+      [System.Text.RegularExpressions.RegexOptions]::Singleline
+    )
+    if ($answers.Count -ne 10) {
+      $errors.Add('FAQ must render ten details and summary entries.')
+    } else {
+      foreach ($answer in $answers) {
+        $wordCount = Get-PlainWordCount $answer.Groups[1].Value
+        if ($wordCount -lt 60 -or $wordCount -gt 140) {
+          $errors.Add("FAQ answer must contain 60-140 words; found $wordCount words.")
+        }
+      }
+    }
+  }
+}
+
 foreach ($page in $pages) {
   if (-not (Test-Path -LiteralPath (Join-Path $root $page) -PathType Leaf)) { $errors.Add("Missing page: $page") }
 }
@@ -130,7 +248,10 @@ foreach ($file in $siteFiles) {
   }
 }
 
-$adFreePages = @('play/index.php', '404.php')
+$adFreePages = @(
+  'play/index.php', '404.php', 'heroes/index.php', 'bosses/index.php',
+  'worlds/index.php', 'game-info/index.php', 'faq/index.php'
+)
 foreach ($page in $pages) {
   $pagePath = Join-Path $root $page
   if (Test-Path -LiteralPath $pagePath -PathType Leaf) {
@@ -249,7 +370,23 @@ Assert-FileContains 'guides/offline-rewards/index.php' @(
 Assert-FileContains 'guides/rebirth-guide/index.php' @(
   'stage 20', 'stage 25', '5%', 'does not affect hero DPS'
 )
+Assert-FileContains 'heroes/index.php' @(
+  'Building the team', 'Unlocking versus upgrading', 'Heroes after stage 40'
+)
+Assert-FileContains 'bosses/index.php' @(
+  'The repeating boss cycle', 'Time limits are not difficulty ratings', 'How to use this field guide'
+)
+Assert-FileContains 'worlds/index.php' @('200-stage cycle')
+Assert-FileContains 'game-info/index.php' @(
+  'portrait', '200 stages', 'Swordsman', 'gold', 'optional rewarded ads', 'offline rewards', 'rebirth'
+)
+Assert-FileExcludes 'bosses/index.php' @('HP multiplier', 'health multiplier')
+Assert-FileContains 'faq/index.php' @(
+  'progress stays in the current browser unless the deployed platform explicitly provides its own save feature'
+)
+Assert-FileExcludes 'faq/index.php' @('cloud save', 'cloud saves')
 Assert-HomepageContentQuality
+Assert-ReferencePageContentQuality
 
 foreach ($page in ($pages | Where-Object { $_ -ne '404.php' })) {
   $pagePath = Join-Path $root $page
