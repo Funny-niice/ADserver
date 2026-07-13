@@ -136,6 +136,21 @@ function Get-PlainWordCount {
   return [regex]::Matches($plainText, "[A-Za-z0-9]+(?:['-][A-Za-z0-9]+)*").Count
 }
 
+function Assert-RenderedPageContains {
+  param(
+    [string]$RelativePath,
+    [string[]]$ExpectedLiterals
+  )
+
+  $rendered = Get-RenderedPage $RelativePath
+  if ($null -eq $rendered) { return }
+  foreach ($literal in $ExpectedLiterals) {
+    if (-not $rendered.Contains($literal)) {
+      $errors.Add("Missing rendered content in ${RelativePath}: $literal")
+    }
+  }
+}
+
 function Assert-ReferencePageContentQuality {
   $expectedRecords = @{
     'heroes/index.php' = @('Swordsman','Archer','Mage','Paladin','Rogue','Priest')
@@ -250,7 +265,9 @@ foreach ($file in $siteFiles) {
 
 $adFreePages = @(
   'play/index.php', '404.php', 'heroes/index.php', 'bosses/index.php',
-  'worlds/index.php', 'game-info/index.php', 'faq/index.php'
+  'worlds/index.php', 'game-info/index.php', 'faq/index.php',
+  'about/index.php', 'contact/index.php', 'privacy/index.php',
+  'terms/index.php', 'updates/index.php'
 )
 foreach ($page in $pages) {
   $pagePath = Join-Path $root $page
@@ -385,6 +402,11 @@ Assert-FileContains 'faq/index.php' @(
   'progress stays in the current browser unless the deployed platform explicitly provides its own save feature'
 )
 Assert-FileExcludes 'faq/index.php' @('cloud save', 'cloud saves')
+Assert-RenderedPageContains 'about/index.php' @('independent game publisher')
+Assert-RenderedPageContains 'contact/index.php' @('https://github.com/Funny-niice/ADserver/issues')
+Assert-RenderedPageContains 'privacy/index.php' @('local browser storage', 'Google AdSense', 'cookies')
+Assert-RenderedPageContains 'terms/index.php' @('no guarantee of uninterrupted availability')
+Assert-RenderedPageContains 'updates/index.php' @('2026-07-13')
 Assert-HomepageContentQuality
 Assert-ReferencePageContentQuality
 
