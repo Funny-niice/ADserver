@@ -1,4 +1,4 @@
-DirectoryIndex index.php
+DirectoryIndex index.php index.html
 ErrorDocument 404 /404.php
 Options -Indexes
 RedirectMatch 404 "^/(?:docs|tools|\.git|\.superpowers|\.tools|\.worktrees)(?:/|$)"

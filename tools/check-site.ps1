@@ -747,7 +747,7 @@ Assert-GuideContentQuality
 Assert-RenderedRouteContracts
 
 Assert-FileContains '.htaccess' @(
-  'DirectoryIndex index.php', 'ErrorDocument 404 /404.php', 'Options -Indexes',
+  'DirectoryIndex index.php index.html', 'ErrorDocument 404 /404.php', 'Options -Indexes',
   'RedirectMatch 404', 'docs', 'tools', '\.git', '\.superpowers', '\.tools', '\.worktrees'
 )
 Assert-FileContains 'robots.txt' @(
