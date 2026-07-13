@@ -39,6 +39,9 @@ function render_header(array $page): void
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title><?= escape_html($pageTitle) ?></title>
     <meta name="description" content="<?= escape_html($page['description']) ?>">
+    <?php if (isset($page['robots']) && $page['robots'] !== ''): ?>
+    <meta name="robots" content="<?= escape_html($page['robots']) ?>">
+    <?php endif; ?>
     <meta name="google-adsense-account" content="<?= escape_html(ADSENSE_PUBLISHER_ID) ?>">
     <link rel="canonical" href="<?= escape_html(canonical_url($page['canonical'])) ?>">
     <link rel="stylesheet" href="/assets/site.css">

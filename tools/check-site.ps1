@@ -14,6 +14,21 @@ $sharedFiles = @(
   'includes/config.php','includes/content.php','includes/render.php',
   'assets/site.css','assets/site.js'
 )
+$crawlFiles = @('404.php','.htaccess','robots.txt','sitemap.xml')
+$guidePages = @(
+  'guides/beginners-guide/index.php',
+  'guides/upgrading-guide/index.php',
+  'guides/boss-battles/index.php',
+  'guides/offline-rewards/index.php',
+  'guides/rebirth-guide/index.php'
+)
+$sitemapRoutes = @(
+  '/', '/game-info/', '/guides/',
+  '/guides/beginners-guide/', '/guides/upgrading-guide/',
+  '/guides/boss-battles/', '/guides/offline-rewards/',
+  '/guides/rebirth-guide/', '/heroes/', '/bosses/', '/worlds/', '/faq/',
+  '/updates/', '/about/', '/contact/', '/privacy/', '/terms/'
+)
 
 function Assert-FileContains {
   param(
@@ -151,6 +166,150 @@ function Assert-RenderedPageContains {
   }
 }
 
+function Assert-GuideContentQuality {
+  foreach ($relativePath in $guidePages) {
+    $rendered = Get-RenderedPage $relativePath
+    if ($null -eq $rendered) { continue }
+
+    $article = [regex]::Match(
+      $rendered,
+      '<article class="article">(.*?)</article>',
+      [System.Text.RegularExpressions.RegexOptions]::Singleline
+    )
+    if (-not $article.Success) {
+      $errors.Add("Guide article could not be checked: $relativePath")
+      continue
+    }
+
+    $paragraphText = @([regex]::Matches(
+      $article.Groups[1].Value,
+      '<p(?:\s[^>]*)?>(.*?)</p>',
+      [System.Text.RegularExpressions.RegexOptions]::Singleline
+    ) | ForEach-Object { $_.Groups[1].Value }) -join ' '
+    $wordCount = Get-PlainWordCount $paragraphText
+    if ($wordCount -lt 700 -or $wordCount -gt 1000) {
+      $errors.Add("Guide prose must contain 700-1000 words; found $wordCount words in $relativePath")
+    }
+
+    $h1Count = [regex]::Matches($rendered, '<h1(?:\s|>)').Count
+    if ($h1Count -ne 1) {
+      $errors.Add("Guide must render exactly one H1; found $h1Count in $relativePath")
+    }
+
+    $relatedGuides = @([regex]::Matches($article.Groups[1].Value, 'href="(/guides/[^"#?]+/)"') |
+      ForEach-Object { $_.Groups[1].Value } | Select-Object -Unique)
+    $ownRoute = '/' + ($relativePath -replace 'index\.php$','')
+    $relatedGuides = @($relatedGuides | Where-Object { $_ -ne $ownRoute })
+    if ($relatedGuides.Count -lt 2) {
+      $errors.Add("Guide must link to at least two related guides: $relativePath")
+    }
+    if ($article.Groups[1].Value -notmatch 'href="/play/"') {
+      $errors.Add("Guide must link directly to Play: $relativePath")
+    }
+
+    $expectedCanonical = 'https://tinyheroestap.com' + $ownRoute
+    if ($rendered -notmatch ('<link rel="canonical" href="' + [regex]::Escape($expectedCanonical) + '">')) {
+      $errors.Add("Guide canonical does not match its route: $relativePath")
+    }
+    if ($rendered -match 'adsbygoogle|pagead2|data-ad-slot') {
+      $errors.Add("Guide must render without display-ad markup: $relativePath")
+    }
+  }
+}
+
+function Assert-RenderedRouteContracts {
+  $canonicals = @{}
+  foreach ($relativePath in $pages) {
+    $rendered = Get-RenderedPage $relativePath
+    if ($null -eq $rendered) { continue }
+
+    $h1Count = [regex]::Matches($rendered, '<h1(?:\s|>)').Count
+    if ($h1Count -ne 1) {
+      $errors.Add("Route must render exactly one H1; found $h1Count in $relativePath")
+    }
+    if ($rendered -match 'adsbygoogle|pagead2|data-ad-slot') {
+      $errors.Add("Route must render without display-ad markup: $relativePath")
+    }
+
+    $canonicalMatches = [regex]::Matches($rendered, '<link rel="canonical" href="([^"]+)">')
+    if ($canonicalMatches.Count -ne 1) {
+      $errors.Add("Route must render exactly one canonical link: $relativePath")
+    } else {
+      $canonical = [System.Net.WebUtility]::HtmlDecode($canonicalMatches[0].Groups[1].Value)
+      if ($canonicals.ContainsKey($canonical)) {
+        $errors.Add("Canonical URL is not unique: $canonical")
+      } else {
+        $canonicals[$canonical] = $relativePath
+      }
+    }
+
+    $links = [regex]::Matches($rendered, 'href\s*=\s*["'']([^"'']+)["'']')
+    foreach ($link in $links) {
+      $target = [System.Net.WebUtility]::HtmlDecode($link.Groups[1].Value)
+      if ($target -match '^[a-z][a-z0-9+.-]*:' -or $target.StartsWith('//') -or $target.StartsWith('#')) {
+        continue
+      }
+      $target = ($target -split '[?#]', 2)[0]
+      if (-not $target.EndsWith('/') -or $target -eq '/en/') {
+        continue
+      }
+      $targetPath = if ($target -eq '/') {
+        Join-Path $root 'index.php'
+      } else {
+        Join-Path $root (($target.Trim('/') -replace '/', '\') + '\index.php')
+      }
+      if (-not (Test-Path -LiteralPath $targetPath -PathType Leaf)) {
+        $errors.Add("Broken local directory link in ${relativePath}: $target")
+      }
+    }
+  }
+}
+
+function Assert-CrawlControls {
+  foreach ($relativePath in $crawlFiles) {
+    if (-not (Test-Path -LiteralPath (Join-Path $root $relativePath) -PathType Leaf)) {
+      $errors.Add("Missing crawl or error file: $relativePath")
+    }
+  }
+
+  $sitemapPath = Join-Path $root 'sitemap.xml'
+  if (Test-Path -LiteralPath $sitemapPath -PathType Leaf) {
+    try {
+      [xml]$sitemap = Get-Content -Raw -LiteralPath $sitemapPath
+      $locations = @($sitemap.SelectNodes('/*[local-name()="urlset"]/*[local-name()="url"]/*[local-name()="loc"]') |
+        ForEach-Object { $_.InnerText.Trim() })
+      $expectedLocations = @($sitemapRoutes | ForEach-Object { 'https://tinyheroestap.com' + $_ })
+      foreach ($expectedLocation in $expectedLocations) {
+        if ($locations -notcontains $expectedLocation) {
+          $errors.Add("Missing sitemap location: $expectedLocation")
+        }
+      }
+      foreach ($location in $locations) {
+        if ($expectedLocations -notcontains $location) {
+          $errors.Add("Unexpected sitemap location: $location")
+        }
+        if ($location -notmatch '^https://tinyheroestap\.com/') {
+          $errors.Add("Sitemap location must use the configured HTTPS origin: $location")
+        }
+      }
+      if (@($locations | Select-Object -Unique).Count -ne $locations.Count) {
+        $errors.Add('Sitemap locations must be unique.')
+      }
+      $sitemapSource = Get-Content -Raw -LiteralPath $sitemapPath
+      if ($sitemapSource -match '<(?:changefreq|priority)>') {
+        $errors.Add('Sitemap must not use artificial changefreq or priority values.')
+      }
+      foreach ($disallowedRoute in @('/play/','/en/','404.php')) {
+        if ($sitemapSource.Contains($disallowedRoute)) {
+          $errors.Add("Disallowed sitemap route: $disallowedRoute")
+        }
+      }
+    } catch {
+      $errors.Add("Sitemap is not valid XML: $($_.Exception.Message)")
+    }
+  }
+}
+
 function Assert-ReferencePageContentQuality {
   $expectedRecords = @{
     'heroes/index.php' = @('Swordsman','Archer','Mage','Paladin','Rogue','Priest')
@@ -174,6 +333,44 @@ function Assert-ReferencePageContentQuality {
     foreach ($record in $expectedRecords[$relativePath]) {
       if (-not $rendered.Contains($record)) {
         $errors.Add("Missing rendered reference record in ${relativePath}: $record")
+      }
+    }
+  }
+
+  $heroesRendered = Get-RenderedPage 'heroes/index.php'
+  if ($null -ne $heroesRendered) {
+    $heroCards = [regex]::Matches(
+      $heroesRendered,
+      '<article class="card hero-card">.*?</article>',
+      [System.Text.RegularExpressions.RegexOptions]::Singleline
+    )
+    if ($heroCards.Count -ne 6) {
+      $errors.Add("Heroes page must render exactly 6 hero cards; found $($heroCards.Count).")
+    }
+  }
+
+  $bossesRendered = Get-RenderedPage 'bosses/index.php'
+  if ($null -ne $bossesRendered) {
+    $bossCards = [regex]::Matches(
+      $bossesRendered,
+      '<article class="card boss-card">\s*<h2>(.*?)</h2>\s*<p><strong>Base timer: (\d+) seconds\.</strong>.*?</p>\s*</article>',
+      [System.Text.RegularExpressions.RegexOptions]::Singleline
+    )
+    if ($bossCards.Count -ne 10) {
+      $errors.Add("Bosses page must render exactly 10 boss cards; found $($bossCards.Count).")
+    } else {
+      $expectedBossTimers = @(
+        'Meadow Slime King=30','Cloud Gate Titan=22','Mist Rune Colossus=25',
+        'Storm Bridge Roc=25','Star Tower Hydra=28','Moon Archive Golem=28',
+        'Thunder Forge Djinn=31','Frost Crown Beast=31',
+        'Void Gate Dragon=34','Sky Throne Warden=34'
+      )
+      $renderedBossTimers = @($bossCards | ForEach-Object {
+        $name = [System.Net.WebUtility]::HtmlDecode(([regex]::Replace($_.Groups[1].Value, '<[^>]+>', ' '))).Trim()
+        $name + '=' + $_.Groups[2].Value
+      })
+      if (($renderedBossTimers -join '|') -ne ($expectedBossTimers -join '|')) {
+        $errors.Add('Boss cards must preserve the exact canonical name-to-timer mapping and order.')
       }
     }
   }
@@ -250,6 +447,8 @@ foreach ($file in $sharedFiles) {
   if (-not (Test-Path -LiteralPath (Join-Path $root $file) -PathType Leaf)) { $errors.Add("Missing shared file: $file") }
 }
 
+Assert-CrawlControls
+
 $placeholderPatterns = @('TBD','TODO','coming soon','lorem ipsum','href="#"')
 $siteFiles = @($pages + $sharedFiles) |
   Where-Object { Test-Path -LiteralPath (Join-Path $root $_) -PathType Leaf } |
@@ -284,6 +483,19 @@ foreach ($page in $pages) {
     if ($pageSource -match '[''"]allow_ads[''"]\s*=>\s*false' -and $pageSource.Contains('render_ad_slot')) {
       $errors.Add("Ad slot call is not permitted on ad-free page: $page")
     }
+  }
+}
+
+$phpFiles = @(Get-ChildItem -LiteralPath $root -Recurse -Filter *.php -File |
+  Where-Object { $_.FullName -notmatch '[\\/]\.tools[\\/]' })
+foreach ($phpFile in $phpFiles) {
+  $relativePath = $phpFile.FullName.Substring($root.Length + 1)
+  $source = Get-Content -Raw -LiteralPath $phpFile.FullName
+  if ($relativePath -ne 'includes\render.php' -and $source -match 'adsbygoogle|pagead2\.googlesyndication\.com') {
+    $errors.Add("Direct AdSense script reference outside includes/render.php: $relativePath")
+  }
+  if ($source -match '[''"]allow_ads[''"]\s*=>\s*true') {
+    $errors.Add("Display ads are not permitted by page policy: $relativePath")
   }
 }
 foreach ($page in $adFreePages) {
@@ -344,7 +556,7 @@ Assert-FileContains 'includes/render.php' @(
   'function render_breadcrumbs(array $items): void',
   "function render_card_grid(array `$items, string `$className = ''): void",
   'function render_ad_slot(string $slotName): void', "htmlspecialchars(`$value, ENT_QUOTES, 'UTF-8')",
-  '<html lang="en">', 'name="viewport"', 'rel="canonical"',
+  '<html lang="en">', 'name="viewport"', 'rel="canonical"', "'robots'", 'name="robots"',
   'href="/assets/site.css"', 'class="skip-link"', 'aria-expanded="false"',
   "'allow_ads'", "if (!ADSENSE_DISPLAY_ENABLED || !`$pageAllowsAds)"
 )
@@ -409,6 +621,25 @@ Assert-RenderedPageContains 'terms/index.php' @('no guarantee of uninterrupted a
 Assert-RenderedPageContains 'updates/index.php' @('2026-07-13')
 Assert-HomepageContentQuality
 Assert-ReferencePageContentQuality
+Assert-GuideContentQuality
+Assert-RenderedRouteContracts
+
+Assert-FileContains '.htaccess' @(
+  'DirectoryIndex index.php', 'ErrorDocument 404 /404.php', 'Options -Indexes'
+)
+Assert-FileContains 'robots.txt' @(
+  'User-agent: *', 'Allow: /', 'Disallow: /en/',
+  'Sitemap: https://tinyheroestap.com/sitemap.xml'
+)
+Assert-FileContains '404.php' @(
+  'http_response_code(404);', "'canonical' => '/404.php'", "'allow_ads' => false",
+  "'robots' => 'noindex,follow'", 'href="/"', 'href="/guides/"',
+  'href="/faq/"', 'href="/play/"'
+)
+Assert-RenderedPageContains '404.php' @(
+  '<meta name="robots" content="noindex,follow">',
+  'href="/"', 'href="/guides/"', 'href="/faq/"', 'href="/play/"'
+)
 
 foreach ($page in ($pages | Where-Object { $_ -ne '404.php' })) {
   $pagePath = Join-Path $root $page
