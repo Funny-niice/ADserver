@@ -176,6 +176,17 @@ Assert-FileContains 'assets/site.css' @(
 Assert-FileContains 'assets/site.js' @(
   "querySelector('[data-nav-toggle]')", "setAttribute('aria-expanded'", 'dataset.open'
 )
+Assert-FileContains 'index.php' @(
+  'How the adventure works', 'Meet the heroes', 'Boss battles',
+  'Explore ten sky realms', 'Player guides'
+)
+Assert-FileContains 'play/index.php' @(
+  'class="game-frame"',
+  'src="<?= htmlspecialchars(GAME_CLIENT_PATH, ENT_QUOTES, ''UTF-8'') ?>"'
+)
+Assert-FileExcludes 'play/index.php' @(
+  'adsbygoogle', 'pagead2', 'render_ad_slot'
+)
 
 foreach ($page in ($pages | Where-Object { $_ -ne '404.php' })) {
   $pagePath = Join-Path $root $page
