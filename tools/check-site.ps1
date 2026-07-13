@@ -166,6 +166,35 @@ function Assert-RenderedPageContains {
   }
 }
 
+function Get-CanonicalHrefs {
+  param([string]$Html)
+
+  $linkTags = [regex]::Matches(
+    $Html,
+    '<link\b[^>]*>',
+    [System.Text.RegularExpressions.RegexOptions]::IgnoreCase
+  )
+  foreach ($linkTag in $linkTags) {
+    $rel = [regex]::Match(
+      $linkTag.Value,
+      '\brel\s*=\s*["'']([^"'']*)["'']',
+      [System.Text.RegularExpressions.RegexOptions]::IgnoreCase
+    )
+    if (-not $rel.Success -or @($rel.Groups[1].Value -split '\s+') -notcontains 'canonical') {
+      continue
+    }
+
+    $href = [regex]::Match(
+      $linkTag.Value,
+      '\bhref\s*=\s*["'']([^"'']+)["'']',
+      [System.Text.RegularExpressions.RegexOptions]::IgnoreCase
+    )
+    if ($href.Success) {
+      Write-Output ([System.Net.WebUtility]::HtmlDecode($href.Groups[1].Value))
+    }
+  }
+}
+
 function Assert-GuideContentQuality {
   foreach ($relativePath in $guidePages) {
     $rendered = Get-RenderedPage $relativePath
@@ -191,7 +220,11 @@ function Assert-GuideContentQuality {
       $errors.Add("Guide prose must contain 700-1000 words; found $wordCount words in $relativePath")
     }
 
-    $h1Count = [regex]::Matches($rendered, '<h1(?:\s|>)').Count
+    $h1Count = [regex]::Matches(
+      $rendered,
+      '<h1(?:\s|>)',
+      [System.Text.RegularExpressions.RegexOptions]::IgnoreCase
+    ).Count
     if ($h1Count -ne 1) {
       $errors.Add("Guide must render exactly one H1; found $h1Count in $relativePath")
     }
@@ -208,7 +241,8 @@ function Assert-GuideContentQuality {
     }
 
     $expectedCanonical = 'https://tinyheroestap.com' + $ownRoute
-    if ($rendered -notmatch ('<link rel="canonical" href="' + [regex]::Escape($expectedCanonical) + '">')) {
+    $guideCanonicals = @(Get-CanonicalHrefs $rendered)
+    if ($guideCanonicals.Count -ne 1 -or $guideCanonicals[0] -ne $expectedCanonical) {
       $errors.Add("Guide canonical does not match its route: $relativePath")
     }
     if ($rendered -match 'adsbygoogle|pagead2|data-ad-slot') {
@@ -223,7 +257,11 @@ function Assert-RenderedRouteContracts {
     $rendered = Get-RenderedPage $relativePath
     if ($null -eq $rendered) { continue }
 
-    $h1Count = [regex]::Matches($rendered, '<h1(?:\s|>)').Count
+    $h1Count = [regex]::Matches(
+      $rendered,
+      '<h1(?:\s|>)',
+      [System.Text.RegularExpressions.RegexOptions]::IgnoreCase
+    ).Count
     if ($h1Count -ne 1) {
       $errors.Add("Route must render exactly one H1; found $h1Count in $relativePath")
     }
@@ -231,11 +269,11 @@ function Assert-RenderedRouteContracts {
       $errors.Add("Route must render without display-ad markup: $relativePath")
     }
 
-    $canonicalMatches = [regex]::Matches($rendered, '<link rel="canonical" href="([^"]+)">')
-    if ($canonicalMatches.Count -ne 1) {
+    $canonicalHrefs = @(Get-CanonicalHrefs $rendered)
+    if ($canonicalHrefs.Count -ne 1) {
       $errors.Add("Route must render exactly one canonical link: $relativePath")
     } else {
-      $canonical = [System.Net.WebUtility]::HtmlDecode($canonicalMatches[0].Groups[1].Value)
+      $canonical = $canonicalHrefs[0]
       if ($canonicals.ContainsKey($canonical)) {
         $errors.Add("Canonical URL is not unique: $canonical")
       } else {
@@ -486,15 +524,20 @@ foreach ($page in $pages) {
   }
 }
 
-$phpFiles = @(Get-ChildItem -LiteralPath $root -Recurse -Filter *.php -File |
-  Where-Object { $_.FullName -notmatch '[\\/]\.tools[\\/]' })
-foreach ($phpFile in $phpFiles) {
-  $relativePath = $phpFile.FullName.Substring($root.Length + 1)
-  $source = Get-Content -Raw -LiteralPath $phpFile.FullName
+$sourceExtensions = @('.php','.html','.htm','.js','.css','.txt','.xml','.conf','.config','.ini','.json')
+$excludedSourceDirectories = '^(?:\.git|\.tools|\.superpowers|docs|tools|vendor|node_modules)[\\/]'
+$sourceFiles = @(Get-ChildItem -LiteralPath $root -Recurse -File | Where-Object {
+  $relativePath = $_.FullName.Substring($root.Length + 1)
+  $relativePath -notmatch $excludedSourceDirectories -and
+    ($sourceExtensions -contains $_.Extension.ToLowerInvariant() -or $_.Name -eq '.htaccess')
+})
+foreach ($sourceFile in $sourceFiles) {
+  $relativePath = $sourceFile.FullName.Substring($root.Length + 1)
+  $source = Get-Content -Raw -LiteralPath $sourceFile.FullName
   if ($relativePath -ne 'includes\render.php' -and $source -match 'adsbygoogle|pagead2\.googlesyndication\.com') {
     $errors.Add("Direct AdSense script reference outside includes/render.php: $relativePath")
   }
-  if ($source -match '[''"]allow_ads[''"]\s*=>\s*true') {
+  if ($sourceFile.Extension -eq '.php' -and $source -match '[''"]allow_ads[''"]\s*=>\s*true') {
     $errors.Add("Display ads are not permitted by page policy: $relativePath")
   }
 }
@@ -556,7 +599,7 @@ Assert-FileContains 'includes/render.php' @(
   'function render_breadcrumbs(array $items): void',
   "function render_card_grid(array `$items, string `$className = ''): void",
   'function render_ad_slot(string $slotName): void', "htmlspecialchars(`$value, ENT_QUOTES, 'UTF-8')",
-  '<html lang="en">', 'name="viewport"', 'rel="canonical"', "'robots'", 'name="robots"',
+  '<html lang="en">', 'name="viewport"', 'canonical_url(', "'robots'", 'name="robots"',
   'href="/assets/site.css"', 'class="skip-link"', 'aria-expanded="false"',
   "'allow_ads'", "if (!ADSENSE_DISPLAY_ENABLED || !`$pageAllowsAds)"
 )
