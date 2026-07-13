@@ -4,13 +4,14 @@
 
 **Goal:** Convert the single-purpose launcher into an English-first official game and player-guide site whose substantive publisher content is separated from the ad-free game client.
 
-**Architecture:** Keep the deployment dependency-free and PHP-based. Shared configuration, game facts, rendering, and ad policy live under `includes/`; small route-specific `index.php` files compose the pages. A PowerShell checker validates structure and advertising policy, while the official PHP 8.2 container supplies syntax and preview checks because PHP is not installed locally.
+**Architecture:** Keep the deployment dependency-free and PHP-based. Shared configuration, game facts, rendering, and ad policy live under `includes/`; small route-specific `index.php` files compose the pages. A PowerShell checker validates structure and advertising policy, while an ignored project-local official PHP 7.2.34 runtime supplies syntax and preview checks because PHP is not installed system-wide.
 
-**Tech Stack:** PHP 8.2, semantic HTML5, CSS, minimal vanilla JavaScript, PowerShell 7, Docker-hosted PHP CLI.
+**Tech Stack:** PHP 7.2.34, semantic HTML5, CSS, minimal vanilla JavaScript, PowerShell 7, project-local PHP CLI.
 
 ## Global Constraints
 
 - English is the only launch language; do not create incomplete translations.
+- All PHP must be compatible with PHP 7.2: no arrow functions, typed properties, null-coalescing assignment, short closures, or other PHP 7.3+ syntax.
 - `/play/`, `/en/`, loading, error, redirect, and pure interaction screens must never load AdSense display advertising.
 - Preserve publisher ID `ca-pub-7672795271513455`, but keep display ads globally disabled through launch review.
 - Use current facts: 200 stages, 20 normal monsters, 10 bosses, 10 worlds, one main hero plus five heroes, stage-20 rebirth, stage-25 first recommended rebirth, and 100 rebirth maximum.
@@ -178,7 +179,7 @@ Use the current navy/sky/violet/gold palette, `72rem` container, `65ch` article 
 
 ```powershell
 pwsh -NoProfile -File tools/check-site.ps1
-docker run --rm -v "${PWD}:/app" -w /app php:8.2-cli sh -lc 'find includes -name "*.php" -print0 | xargs -0 -n1 php -l'
+Get-ChildItem includes -Recurse -Filter *.php | ForEach-Object { & .\.tools\php72\php.exe -l $_.FullName; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE } }
 git add includes assets/site.css assets/site.js tools/check-site.ps1
 git commit -m "feat: add shared content site platform"
 ```
@@ -268,7 +269,7 @@ Each guide must contain 700–1,000 words of manually reviewed prose, direct lin
 
 ```powershell
 pwsh -NoProfile -File tools/check-site.ps1
-docker run --rm -v "${PWD}:/app" -w /app php:8.2-cli sh -lc 'find guides -name "*.php" -print0 | xargs -0 -n1 php -l'
+Get-ChildItem guides -Recurse -Filter *.php | ForEach-Object { & .\.tools\php72\php.exe -l $_.FullName; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE } }
 git add guides tools/check-site.ps1
 git commit -m "feat: publish core player guides"
 ```
@@ -303,7 +304,7 @@ Use `<details><summary>` and 60–140 word answers for: free-to-play status; whe
 
 ```powershell
 pwsh -NoProfile -File tools/check-site.ps1
-docker run --rm -v "${PWD}:/app" -w /app php:8.2-cli sh -lc 'find heroes bosses worlds game-info faq -name "*.php" -print0 | xargs -0 -n1 php -l'
+Get-ChildItem heroes,bosses,worlds,game-info,faq -Recurse -Filter *.php | ForEach-Object { & .\.tools\php72\php.exe -l $_.FullName; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE } }
 git add heroes bosses worlds game-info faq tools/check-site.ps1
 git commit -m "feat: add game reference content"
 ```
@@ -388,7 +389,7 @@ Reject direct AdSense script references outside `includes/render.php`; reject an
 
 ```powershell
 pwsh -NoProfile -File tools/check-site.ps1
-docker run --rm -v "${PWD}:/app" -w /app php:8.2-cli sh -lc 'find . -name "*.php" -print0 | xargs -0 -n1 php -l'
+Get-ChildItem . -Recurse -Filter *.php | Where-Object { $_.FullName -notmatch '\\.worktrees\\|\\.tools\\' } | ForEach-Object { & .\.tools\php72\php.exe -l $_.FullName; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE } }
 git diff --check
 ```
 
@@ -413,7 +414,7 @@ git commit -m "feat: finish crawl and policy safeguards"
 - [ ] **Step 1: Start preview**
 
 ```powershell
-docker run --rm -d --name adserver-preview -p 8080:8080 -v "${PWD}:/app" -w /app php:8.2-cli php -S 0.0.0.0:8080
+$preview = Start-Process -FilePath .\.tools\php72\php.exe -ArgumentList '-S','127.0.0.1:8080','-t','.' -WindowStyle Hidden -PassThru
 ```
 
 - [ ] **Step 2: Inspect desktop 1440×900 and mobile 390×844**
@@ -424,9 +425,9 @@ Verify Home, all Guides, Heroes, Bosses, Worlds, FAQ, About, Privacy, and Play; 
 
 ```powershell
 pwsh -NoProfile -File tools/check-site.ps1
-docker run --rm -v "${PWD}:/app" -w /app php:8.2-cli sh -lc 'find . -name "*.php" -print0 | xargs -0 -n1 php -l'
+Get-ChildItem . -Recurse -Filter *.php | Where-Object { $_.FullName -notmatch '\\.worktrees\\|\\.tools\\' } | ForEach-Object { & .\.tools\php72\php.exe -l $_.FullName; if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE } }
 git diff --check
-docker rm -f adserver-preview
+$preview | Stop-Process
 git status --short --branch
 ```
 
@@ -440,7 +441,7 @@ Confirm the actual production origin and update `SITE_ORIGIN`, robots, and sitem
 
 ## Completion Gate
 
-- Static checker exits 0 and every PHP file passes PHP 8.2 syntax.
+- Static checker exits 0 and every PHP file passes PHP 7.2.34 syntax.
 - Display-ad network requests are absent while the kill switch is false.
 - Play, client, errors, redirects, and behavioral screens remain ad-free.
 - All launch page groups are complete, cross-linked, mobile-readable, and placeholder-free.
