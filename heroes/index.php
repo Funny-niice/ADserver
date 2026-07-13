@@ -14,12 +14,12 @@ $page = [
 ];
 
 $heroDescriptions = [
-    'Swordsman' => 'The starting hero turns player input into direct tap damage. Improving the Swordsman supports active sessions and timed boss attempts when you can keep tapping. This is a separate damage source from companion DPS.',
-    'Archer' => 'The first unlockable companion introduces automatic damage at stage 5. Archer attacks without requiring a tap for every hit, giving the team an early DPS foundation for ordinary progress and rewards earned while away.',
-    'Mage' => 'Available at stage 10, Mage adds slow, heavy automatic hits. The attack rhythm differs from Archer, but both belong to companion DPS and continue contributing without the player producing every attack.',
-    'Paladin' => 'Paladin becomes available at stage 15 and supplies reliable mid-game automatic damage. The unlock broadens the companion team before rebirth first becomes available at stage 20.',
-    'Rogue' => 'Rogue unlocks at stage 22, after the rebirth option appears. Fast automatic attacks add another rhythm to the companion roster for players who continue the current run beyond that decision point.',
-    'Priest' => 'The final roster member becomes available at stage 35. Priest provides late-game automatic damage, completing the five-companion team before the run reaches stage 40.',
+    'Swordsman' => 'The starting hero turns player input into direct tap damage. Upgrade the Swordsman when active taps are the practical way to close a normal fight or beat a boss timer. This is a separate damage source from companion DPS.',
+    'Archer' => 'The first unlockable companion introduces automatic damage at stage 5. Upgrade Archer when the new automatic contribution is affordable and the team needs steadier early progress, including rewards earned while away.',
+    'Mage' => 'Available at stage 10, Mage adds slow, heavy automatic hits. Upgrade Mage after checking the damage gained for the gold cost; the different attack rhythm still contributes to the same automatic DPS total as Archer.',
+    'Paladin' => 'Paladin becomes available at stage 15 and supplies reliable mid-game automatic damage. Upgrade Paladin when the purchase improves automatic clearing more than another affordable tap or companion upgrade before the stage-20 rebirth option.',
+    'Rogue' => 'Rogue unlocks at stage 22, after the rebirth option appears. Upgrade Rogue when continuing the current run and its fast automatic attacks offer a useful gain compared with saving for another existing hero.',
+    'Priest' => 'The final roster member becomes available at stage 35. Upgrade Priest when late-run automatic damage is the bottleneck, while still comparing its cost and gain with the five heroes already contributing to the team.',
 ];
 
 render_header($page);
@@ -44,6 +44,9 @@ render_header($page);
 
         <h2>Building the team</h2>
         <p>The Swordsman is present from stage 1, then the companions become available in order: Archer at 5, Mage at 10, Paladin at 15, Rogue at 22, and Priest at 35. This sequence adds automatic attackers gradually while leaving direct tap damage under player control. A balanced team is not a mandatory percentage split. Watch normal clear speed and boss results, then strengthen the damage source that is currently falling behind.</p>
+
+        <h2>What hero synergy means</h2>
+        <p>There are no class-combo bonuses in the current rules. The current synergy is the combination of Swordsman tap damage and additive hero automatic DPS: active taps and the companions’ automatic contributions damage the same enemy, but one hero does not unlock a hidden multiplier for another. Upgrade timing should therefore follow observable damage gained, gold cost, and whether active or automatic progress is holding the run back.</p>
 
         <h2>Unlocking versus upgrading</h2>
         <p>Reaching a hero’s stage makes that character available; it does not make every possible purchase automatically correct. Gold can support the newest companion, improve heroes already attacking, or strengthen Swordsman taps. Compare what an affordable upgrade adds before spending. If you play actively, tap damage can be immediately useful. If you want steadier automatic attacks or stronger offline rewards, companion DPS deserves attention. The <a href="/guides/upgrading-guide/">upgrading guide</a> gives a repeatable way to make that comparison.</p>

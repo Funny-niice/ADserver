@@ -47,7 +47,10 @@ render_header($page);
             <p><a href="/play/">Play Tiny Heroes Tap</a> · <a href="/guides/beginners-guide/">Read the beginner guide</a></p>
         </div>
         <figure class="card">
-            <img src="/assets/landing/ui_loading_screen.png" alt="Tiny Heroes Tap sky castle loading artwork" width="960" height="540" style="display:block;max-width:100%;height:auto">
+            <picture>
+                <source srcset="/assets/landing/ui_loading_screen.webp" type="image/webp">
+                <img src="/assets/landing/ui_loading_screen.png" alt="Tiny Heroes Tap sky castle loading artwork" width="720" height="1280" style="display:block;max-width:100%;height:auto">
+            </picture>
             <figcaption>Artwork from the game client.</figcaption>
         </figure>
     </section>
@@ -110,6 +113,19 @@ render_header($page);
                 </article>
             <?php endforeach; ?>
         </div>
+    </section>
+
+    <section class="container card-grid" aria-label="Help and site news">
+        <article class="card">
+            <h2>Frequently asked questions</h2>
+            <p>Get concise answers about free play, optional rewarded ads, boss failures, hero unlocks, offline rewards, rebirth, saved progress, supported browsers, sound, and vibration.</p>
+            <p><a href="/faq/">Read the FAQ</a></p>
+        </article>
+        <article class="card">
+            <h2>Latest update</h2>
+            <p><time datetime="2026-07-13">2026-07-13</time> — The official site was reorganized around the playable browser game, reference pages, focused guides, and publisher information.</p>
+            <p><a href="/updates/">Read site updates</a></p>
+        </article>
     </section>
 </main>
 <?php render_footer(); ?>

@@ -123,6 +123,32 @@ function Assert-HomepageContentQuality {
       [regex]::Matches($guideSection.Value, '<h3(?:\s|>)').Count -ne 5) {
     $errors.Add('Homepage guide section must use one H2 section heading and five H3 card headings.')
   }
+
+  foreach ($summaryContract in @(
+    @{ Heading = 'Frequently asked questions'; Href = '/faq/' },
+    @{ Heading = 'Latest update'; Href = '/updates/' }
+  )) {
+    if (-not $rendered.Contains($summaryContract.Heading) -or
+        -not $rendered.Contains('href="' + $summaryContract.Href + '"')) {
+      $errors.Add("Homepage must render the $($summaryContract.Heading) summary with a $($summaryContract.Href) link.")
+    }
+  }
+
+  if (-not $rendered.Contains('<picture>') -or
+      -not $rendered.Contains('srcset="/assets/landing/ui_loading_screen.webp"') -or
+      -not $rendered.Contains('type="image/webp"') -or
+      -not $rendered.Contains('width="720" height="1280"')) {
+    $errors.Add('Homepage loading artwork must use a WebP picture source and the source PNG intrinsic dimensions 720x1280.')
+  }
+
+  $sourceImage = Join-Path $root 'assets\landing\ui_loading_screen.png'
+  $optimizedImage = Join-Path $root 'assets\landing\ui_loading_screen.webp'
+  if (-not (Test-Path -LiteralPath $optimizedImage -PathType Leaf)) {
+    $errors.Add('Missing optimized homepage image: assets/landing/ui_loading_screen.webp')
+  } elseif ((Get-Item -LiteralPath $optimizedImage).Length -ge
+      [Math]::Floor((Get-Item -LiteralPath $sourceImage).Length * 0.75)) {
+    $errors.Add('Optimized homepage WebP must be at least 25% smaller than the approved source PNG.')
+  }
 }
 
 function Get-RenderedPage {
@@ -269,6 +295,18 @@ function Assert-RenderedRouteContracts {
       $errors.Add("Route must render without display-ad markup: $relativePath")
     }
 
+    $primaryNav = [regex]::Match(
+      $rendered,
+      '<nav class="site-nav".*?</nav>',
+      [System.Text.RegularExpressions.RegexOptions]::Singleline
+    )
+    $playLinks = @([regex]::Matches($primaryNav.Value, '<a href="([^"]+)">Play</a>') |
+      ForEach-Object { $_.Groups[1].Value })
+    if (-not $primaryNav.Success -or $playLinks.Count -ne 1 -or $playLinks[0] -ne '/play/' -or
+        $primaryNav.Value.Contains('href="/en/"')) {
+      $errors.Add("Global Play navigation must target /play/ and never /en/: $relativePath")
+    }
+
     $canonicalHrefs = @(Get-CanonicalHrefs $rendered)
     if ($canonicalHrefs.Count -ne 1) {
       $errors.Add("Route must render exactly one canonical link: $relativePath")
@@ -384,6 +422,22 @@ function Assert-ReferencePageContentQuality {
     )
     if ($heroCards.Count -ne 6) {
       $errors.Add("Heroes page must render exactly 6 hero cards; found $($heroCards.Count).")
+    } else {
+      foreach ($heroCard in $heroCards) {
+        if ($heroCard.Value -notmatch '(?i)upgrade') {
+          $errors.Add('Every hero card must give per-character upgrade timing guidance.')
+          break
+        }
+      }
+    }
+    foreach ($synergyContract in @(
+      'no class-combo bonuses',
+      'Swordsman tap damage',
+      'additive hero automatic DPS'
+    )) {
+      if (-not $heroesRendered.Contains($synergyContract)) {
+        $errors.Add("Heroes page must state the honest current synergy contract: $synergyContract")
+      }
     }
   }
 
@@ -417,7 +471,7 @@ function Assert-ReferencePageContentQuality {
   if ($null -ne $worldsRendered) {
     $worldCards = [regex]::Matches(
       $worldsRendered,
-      '<article class="card world-card">\s*<h2>.*?</h2>\s*<p>(.*?)</p>\s*</article>',
+      '<article class="card world-card">\s*<h2>(.*?)</h2>\s*<p>(.*?)</p>\s*</article>',
       [System.Text.RegularExpressions.RegexOptions]::Singleline
     )
     if ($worldCards.Count -ne 10) {
@@ -425,15 +479,39 @@ function Assert-ReferencePageContentQuality {
     } else {
       $descriptions = @()
       foreach ($card in $worldCards) {
-        $description = [System.Net.WebUtility]::HtmlDecode(([regex]::Replace($card.Groups[1].Value, '<[^>]+>', ' '))).Trim()
+        $description = [System.Net.WebUtility]::HtmlDecode(([regex]::Replace($card.Groups[2].Value, '<[^>]+>', ' '))).Trim()
         $descriptions += $description
-        $wordCount = Get-PlainWordCount $card.Groups[1].Value
+        $wordCount = Get-PlainWordCount $card.Groups[2].Value
         if ($wordCount -lt 60 -or $wordCount -gt 100) {
           $errors.Add("World description must contain 60-100 words; found $wordCount words.")
         }
       }
       if (@($descriptions | Select-Object -Unique).Count -ne 10) {
         $errors.Add('Every world description must be distinct.')
+      }
+    }
+    $expectedEncounters = @(
+      'Sunrise Fields=Dawn Slime=Meadow Slime King',
+      'Cloud Castle=Cloud Page=Cloud Gate Titan',
+      'Mist Ruins=Mist Wisp=Mist Rune Colossus',
+      'Storm Bridge=Storm Seed=Storm Bridge Roc',
+      'Star Tower=Starcap Shroom=Star Tower Hydra',
+      'Moon Archive=Moonlit Cub=Moon Archive Golem',
+      'Thunder Forge=recurring Meadow Shell=Thunder Forge Djinn',
+      'Frost Crown=Frost Gearling=Frost Crown Beast',
+      'Void Gate=Void Lantern=Void Gate Dragon',
+      'Sky Throne=recurring Void Lantern=Sky Throne Warden'
+    )
+    foreach ($encounter in $expectedEncounters) {
+      $parts = $encounter -split '='
+      $matchingCards = @($worldCards | Where-Object {
+        $heading = [System.Net.WebUtility]::HtmlDecode(([regex]::Replace($_.Groups[1].Value, '<[^>]+>', ' '))).Trim()
+        $heading.StartsWith($parts[0] + ' ')
+      })
+      if ($matchingCards.Count -ne 1 -or
+          -not $matchingCards[0].Groups[2].Value.Contains($parts[1]) -or
+          -not $matchingCards[0].Groups[2].Value.Contains($parts[2])) {
+        $errors.Add("Missing representative world encounter mapping in its world card: $encounter")
       }
     }
   }
@@ -452,7 +530,8 @@ function Assert-ReferencePageContentQuality {
       'When does rebirth become available?',
       'What does rebirth reset, and what do I keep?',
       'Where is my progress stored?',
-      'Which devices and browsers are supported?'
+      'Which devices and browsers are supported?',
+      'How do I control sound and vibration?'
     )
     foreach ($question in $faqQuestions) {
       if (-not $faqRendered.Contains("<summary>$question</summary>")) {
@@ -465,8 +544,8 @@ function Assert-ReferencePageContentQuality {
       '<details>\s*<summary>.*?</summary>\s*<p>(.*?)</p>\s*</details>',
       [System.Text.RegularExpressions.RegexOptions]::Singleline
     )
-    if ($answers.Count -ne 10) {
-      $errors.Add('FAQ must render ten details and summary entries.')
+    if ($answers.Count -ne 11) {
+      $errors.Add('FAQ must render eleven details and summary entries.')
     } else {
       foreach ($answer in $answers) {
         $wordCount = Get-PlainWordCount $answer.Groups[1].Value
@@ -614,7 +693,7 @@ Assert-FileContains 'assets/site.js' @(
 )
 Assert-FileContains 'index.php' @(
   'How the adventure works', 'Meet the heroes', 'Boss battles',
-  'Explore ten sky realms', 'Player guides'
+  'Explore ten sky realms', 'Player guides', 'Frequently asked questions', 'Latest update'
 )
 Assert-FileExcludes 'index.php' @(
   'Consider what the current run needs before dividing coins',
@@ -668,7 +747,8 @@ Assert-GuideContentQuality
 Assert-RenderedRouteContracts
 
 Assert-FileContains '.htaccess' @(
-  'DirectoryIndex index.php', 'ErrorDocument 404 /404.php', 'Options -Indexes'
+  'DirectoryIndex index.php', 'ErrorDocument 404 /404.php', 'Options -Indexes',
+  'RedirectMatch 404', 'docs', 'tools', '\.git', '\.superpowers', '\.tools', '\.worktrees'
 )
 Assert-FileContains 'robots.txt' @(
   'User-agent: *', 'Allow: /', 'Disallow: /en/',

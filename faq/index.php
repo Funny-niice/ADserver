@@ -73,6 +73,11 @@ render_header($page);
             <p>Tiny Heroes Tap is a portrait web game intended for current browsers on mobile and desktop devices. Use an up-to-date browser with JavaScript and local site storage enabled, and keep the play area upright on a phone for the intended portrait layout. Exact behavior can vary with browser restrictions, embedded web views, privacy settings, and available memory. If the game does not load or retain progress, retry in a current standalone browser before reporting the device, browser name, page URL, and steps that produced the problem.</p>
         </details>
 
+        <details>
+            <summary>How do I control sound and vibration?</summary>
+            <p>Use the game’s sound control to turn game audio on or off. If sound still plays, the browser tab and the device also provide their own volume or mute controls. Vibration is available only when the current device, browser, and game environment support it and expose that option; some desktop browsers and restricted web views do not. When a vibration control is present, use it to disable haptic feedback. Otherwise, change vibration or haptics in the device settings. If a browser waits for user interaction before playing audio, begin the game or use its audio control once.</p>
+        </details>
+
         <p>Need a deeper explanation? Browse the <a href="/guides/">player guides</a>, review the <a href="/game-info/">game information</a>, or <a href="/play/">play Tiny Heroes Tap</a>.</p>
     </article>
 </main>

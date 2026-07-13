@@ -29,7 +29,7 @@ function render_header(array $page): void
         ['label' => 'Bosses', 'url' => '/bosses/'],
         ['label' => 'Worlds', 'url' => '/worlds/'],
         ['label' => 'FAQ', 'url' => '/faq/'],
-        ['label' => 'Play', 'url' => GAME_CLIENT_PATH],
+        ['label' => 'Play', 'url' => '/play/'],
     ];
     ?>
 <!doctype html>
