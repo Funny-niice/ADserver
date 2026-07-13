@@ -234,6 +234,21 @@ Assert-FileContains 'play/index.php' @(
 Assert-FileExcludes 'play/index.php' @(
   'adsbygoogle', 'pagead2', 'render_ad_slot'
 )
+Assert-FileContains 'guides/beginners-guide/index.php' @(
+  'Tap damage', 'Hero DPS', 'Every fifth stage'
+)
+Assert-FileContains 'guides/upgrading-guide/index.php' @(
+  'Swordsman', 'Archer', 'Mage', 'Paladin', 'Rogue', 'Priest'
+)
+Assert-FileContains 'guides/boss-battles/index.php' @(
+  '15 seconds', 'does not remove gold', 'once per battle'
+)
+Assert-FileContains 'guides/offline-rewards/index.php' @(
+  'does not defeat a boss', 'hero DPS'
+)
+Assert-FileContains 'guides/rebirth-guide/index.php' @(
+  'stage 20', 'stage 25', '5%', 'does not affect hero DPS'
+)
 Assert-HomepageContentQuality
 
 foreach ($page in ($pages | Where-Object { $_ -ne '404.php' })) {
