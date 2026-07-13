@@ -240,7 +240,7 @@ function Assert-GuideContentQuality {
       $errors.Add("Guide must link directly to Play: $relativePath")
     }
 
-    $expectedCanonical = 'https://tinyheroestap.com' + $ownRoute
+    $expectedCanonical = 'https://www.cqsdsyx.com' + $ownRoute
     $guideCanonicals = @(Get-CanonicalHrefs $rendered)
     if ($guideCanonicals.Count -ne 1 -or $guideCanonicals[0] -ne $expectedCanonical) {
       $errors.Add("Guide canonical does not match its route: $relativePath")
@@ -316,7 +316,7 @@ function Assert-CrawlControls {
       [xml]$sitemap = Get-Content -Raw -LiteralPath $sitemapPath
       $locations = @($sitemap.SelectNodes('/*[local-name()="urlset"]/*[local-name()="url"]/*[local-name()="loc"]') |
         ForEach-Object { $_.InnerText.Trim() })
-      $expectedLocations = @($sitemapRoutes | ForEach-Object { 'https://tinyheroestap.com' + $_ })
+      $expectedLocations = @($sitemapRoutes | ForEach-Object { 'https://www.cqsdsyx.com' + $_ })
       foreach ($expectedLocation in $expectedLocations) {
         if ($locations -notcontains $expectedLocation) {
           $errors.Add("Missing sitemap location: $expectedLocation")
@@ -326,7 +326,7 @@ function Assert-CrawlControls {
         if ($expectedLocations -notcontains $location) {
           $errors.Add("Unexpected sitemap location: $location")
         }
-        if ($location -notmatch '^https://tinyheroestap\.com/') {
+        if ($location -notmatch '^https://www\.cqsdsyx\.com/') {
           $errors.Add("Sitemap location must use the configured HTTPS origin: $location")
         }
       }
@@ -561,7 +561,7 @@ if (Test-Path -LiteralPath $configPath -PathType Leaf) {
 
 Assert-FileContains 'includes/config.php' @(
   "const SITE_NAME = 'Tiny Heroes Tap';",
-  "const SITE_ORIGIN = 'https://tinyheroestap.com';",
+  "const SITE_ORIGIN = 'https://www.cqsdsyx.com';",
   "const ADSENSE_PUBLISHER_ID = 'ca-pub-7672795271513455';",
   "const GAME_CLIENT_PATH = '/en/';",
   "const CONTACT_URL = 'https://github.com/Funny-niice/ADserver/issues';"
@@ -672,7 +672,7 @@ Assert-FileContains '.htaccess' @(
 )
 Assert-FileContains 'robots.txt' @(
   'User-agent: *', 'Allow: /', 'Disallow: /en/',
-  'Sitemap: https://tinyheroestap.com/sitemap.xml'
+  'Sitemap: https://www.cqsdsyx.com/sitemap.xml'
 )
 Assert-FileContains '404.php' @(
   'http_response_code(404);', "'canonical' => '/404.php'", "'allow_ads' => false",

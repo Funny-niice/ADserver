@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 Disallow: /en/
-Sitemap: https://tinyheroestap.com/sitemap.xml
+Sitemap: https://www.cqsdsyx.com/sitemap.xml
