@@ -17,9 +17,11 @@ function canonical_url(string $path): string
     return SITE_ORIGIN . '/' . ltrim($path, '/');
 }
 
-function render_header(string $title, string $description, string $canonicalPath): void
+function render_header(array $page): void
 {
-    $pageTitle = $title === SITE_NAME ? SITE_NAME : $title . ' | ' . SITE_NAME;
+    $pageTitle = $page['title'] === SITE_NAME ? SITE_NAME : $page['title'] . ' | ' . SITE_NAME;
+    $pageAllowsAds = isset($page['allow_ads']) && $page['allow_ads'] === true;
+    $GLOBALS['pageAllowsAds'] = $pageAllowsAds;
     $navigation = [
         ['label' => 'Home', 'url' => '/'],
         ['label' => 'Guides', 'url' => '/guides/'],
@@ -36,9 +38,9 @@ function render_header(string $title, string $description, string $canonicalPath
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title><?= escape_html($pageTitle) ?></title>
-    <meta name="description" content="<?= escape_html($description) ?>">
+    <meta name="description" content="<?= escape_html($page['description']) ?>">
     <meta name="google-adsense-account" content="<?= escape_html(ADSENSE_PUBLISHER_ID) ?>">
-    <link rel="canonical" href="<?= escape_html(canonical_url($canonicalPath)) ?>">
+    <link rel="canonical" href="<?= escape_html(canonical_url($page['canonical'])) ?>">
     <link rel="stylesheet" href="/assets/site.css">
     <script src="/assets/site.js" defer></script>
 </head>
@@ -60,7 +62,6 @@ function render_header(string $title, string $description, string $canonicalPath
         </nav>
     </div>
 </header>
-<main class="site-main" id="main-content">
     <?php
 }
 
@@ -75,7 +76,6 @@ function render_footer(): void
         ['label' => 'GitHub', 'url' => 'https://github.com/Funny-niice/ADserver'],
     ];
     ?>
-</main>
 <footer class="site-footer">
     <div class="container footer-inner">
         <p>&copy; <?= escape_html(date('Y')) ?> <?= escape_html(SITE_NAME) ?></p>
@@ -93,13 +93,54 @@ function render_footer(): void
     <?php
 }
 
-function render_ad_slot(bool $pageEnabled = false): void
+function render_breadcrumbs(array $items): void
 {
-    if (!ADSENSE_DISPLAY_ENABLED || !$pageEnabled) {
+    ?>
+<nav class="breadcrumbs" aria-label="Breadcrumb">
+    <ol>
+        <?php foreach ($items as $item): ?>
+            <li>
+                <?php if (isset($item['url'])): ?>
+                    <a href="<?= escape_html($item['url']) ?>"><?= escape_html($item['label']) ?></a>
+                <?php else: ?>
+                    <span aria-current="page"><?= escape_html($item['label']) ?></span>
+                <?php endif; ?>
+            </li>
+        <?php endforeach; ?>
+    </ol>
+</nav>
+    <?php
+}
+
+function render_card_grid(array $items, string $className = ''): void
+{
+    $classes = trim('card-grid ' . $className);
+    ?>
+<div class="<?= escape_html($classes) ?>">
+    <?php foreach ($items as $item): ?>
+        <article class="card">
+            <h2>
+                <?php if (isset($item['url'])): ?>
+                    <a href="<?= escape_html($item['url']) ?>"><?= escape_html($item['title']) ?></a>
+                <?php else: ?>
+                    <?= escape_html($item['title']) ?>
+                <?php endif; ?>
+            </h2>
+            <p><?= escape_html($item['summary']) ?></p>
+        </article>
+    <?php endforeach; ?>
+</div>
+    <?php
+}
+
+function render_ad_slot(string $slotName): void
+{
+    $pageAllowsAds = isset($GLOBALS['pageAllowsAds']) && $GLOBALS['pageAllowsAds'] === true;
+    if (!ADSENSE_DISPLAY_ENABLED || !$pageAllowsAds) {
         return;
     }
     ?>
-<aside class="ad-slot" aria-label="Advertisement">
+<aside class="ad-slot" aria-label="Advertisement" data-ad-slot="<?= escape_html($slotName) ?>">
     <ins class="adsbygoogle"
          data-ad-client="<?= escape_html(ADSENSE_PUBLISHER_ID) ?>"
          data-ad-format="auto"

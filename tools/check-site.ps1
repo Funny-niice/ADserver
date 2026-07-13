@@ -31,6 +31,42 @@ function Assert-FileContains {
   }
 }
 
+function Assert-FileExcludes {
+  param(
+    [string]$RelativePath,
+    [string[]]$DisallowedLiterals
+  )
+
+  $path = Join-Path $root $RelativePath
+  if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { return }
+  $source = Get-Content -Raw -LiteralPath $path
+  foreach ($literal in $DisallowedLiterals) {
+    if ($source.Contains($literal)) {
+      $errors.Add("Disallowed shared contract in ${RelativePath}: $literal")
+    }
+  }
+}
+
+function Assert-FileContainsInOrder {
+  param(
+    [string]$RelativePath,
+    [string[]]$ExpectedLiterals
+  )
+
+  $path = Join-Path $root $RelativePath
+  if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { return }
+  $source = Get-Content -Raw -LiteralPath $path
+  $position = -1
+  foreach ($literal in $ExpectedLiterals) {
+    $next = $source.IndexOf($literal, $position + 1, [System.StringComparison]::Ordinal)
+    if ($next -lt 0) {
+      $errors.Add("Missing or out-of-order shared contract in ${RelativePath}: $literal")
+      return
+    }
+    $position = $next
+  }
+}
+
 foreach ($page in $pages) {
   if (-not (Test-Path -LiteralPath (Join-Path $root $page) -PathType Leaf)) { $errors.Add("Missing page: $page") }
 }
@@ -51,12 +87,30 @@ foreach ($file in $siteFiles) {
   }
 }
 
-$playPath = Join-Path $root 'play/index.php'
-if (Test-Path -LiteralPath $playPath -PathType Leaf) {
-  $playSource = Get-Content -Raw -LiteralPath $playPath
-  foreach ($pattern in @('adsbygoogle','pagead2','render_ad_slot')) {
-    if ($playSource -match [regex]::Escape($pattern)) {
-      $errors.Add("Ad code is not isolated from play/index.php: $pattern")
+$adFreePages = @('play/index.php', '404.php')
+foreach ($page in $pages) {
+  $pagePath = Join-Path $root $page
+  if (Test-Path -LiteralPath $pagePath -PathType Leaf) {
+    $pageSource = Get-Content -Raw -LiteralPath $pagePath
+    foreach ($pattern in @('adsbygoogle', 'pagead2')) {
+      if ($pageSource -match [regex]::Escape($pattern)) {
+        $errors.Add("Ad code is not isolated from ${page}: $pattern")
+      }
+    }
+    if ($pageSource -match '[''"]allow_ads[''"]\s*=>\s*true') {
+      $errors.Add("Display ads are not permitted by page policy: $page")
+    }
+    if ($pageSource -match '[''"]allow_ads[''"]\s*=>\s*false' -and $pageSource.Contains('render_ad_slot')) {
+      $errors.Add("Ad slot call is not permitted on ad-free page: $page")
+    }
+  }
+}
+foreach ($page in $adFreePages) {
+  $pagePath = Join-Path $root $page
+  if (Test-Path -LiteralPath $pagePath -PathType Leaf) {
+    $pageSource = Get-Content -Raw -LiteralPath $pagePath
+    if ($pageSource -notmatch '[''"]allow_ads[''"]\s*=>\s*false') {
+      $errors.Add("Missing ad-free page policy: $page")
     }
   }
 }
@@ -77,19 +131,43 @@ Assert-FileContains 'includes/config.php' @(
   "const CONTACT_URL = 'https://github.com/Funny-niice/ADserver/issues';"
 )
 Assert-FileContains 'includes/content.php' @(
-  '$heroes = [', '$bosses = [', '$worlds = [', '$guides = [',
-  "'Swordsman'", "'Priest'", "'Meadow Slime King'", "'Sky Throne Warden'",
-  "'Sunrise Fields'", "'Sky Throne'", "'/guides/beginners-guide/'",
-  "'/guides/upgrading-guide/'", "'/guides/boss-battles/'",
-  "'/guides/offline-rewards/'", "'/guides/rebirth-guide/'"
+  '$heroes = [', '$bosses = [', '$worlds = [', '$guides = ['
+)
+Assert-FileContainsInOrder 'includes/content.php' @(
+  "['name'=>'Swordsman','stage'=>1,'role'=>'Player-controlled tap damage']",
+  "['name'=>'Archer','stage'=>5,'role'=>'Early automatic damage']",
+  "['name'=>'Mage','stage'=>10,'role'=>'Slow, heavy automatic hits']",
+  "['name'=>'Paladin','stage'=>15,'role'=>'Reliable mid-game damage']",
+  "['name'=>'Rogue','stage'=>22,'role'=>'Fast automatic attacks']",
+  "['name'=>'Priest','stage'=>35,'role'=>'Late-game automatic damage']",
+  "['name'=>'Meadow Slime King','time'=>30]", "['name'=>'Cloud Gate Titan','time'=>22]",
+  "['name'=>'Mist Rune Colossus','time'=>25]", "['name'=>'Storm Bridge Roc','time'=>25]",
+  "['name'=>'Star Tower Hydra','time'=>28]", "['name'=>'Moon Archive Golem','time'=>28]",
+  "['name'=>'Thunder Forge Djinn','time'=>31]", "['name'=>'Frost Crown Beast','time'=>31]",
+  "['name'=>'Void Gate Dragon','time'=>34]", "['name'=>'Sky Throne Warden','time'=>34]",
+  "'Sunrise Fields','Cloud Castle','Mist Ruins','Storm Bridge','Star Tower'",
+  "'Moon Archive','Thunder Forge','Frost Crown','Void Gate','Sky Throne'",
+  "'title' => `"Beginner's Guide`"", "'url' => '/guides/beginners-guide/'",
+  "'summary' => 'Learn the tapping, hero, coin, and stage basics for a confident first run.'",
+  "'title' => 'Upgrading Guide'", "'url' => '/guides/upgrading-guide/'",
+  "'summary' => 'Spend coins efficiently by balancing tap damage with automatic hero damage.'",
+  "'title' => 'Boss Battles Guide'", "'url' => '/guides/boss-battles/'",
+  "'summary' => 'Prepare for timed boss encounters with practical damage and timing strategies.'",
+  "'title' => 'Offline Rewards Guide'", "'url' => '/guides/offline-rewards/'",
+  "'summary' => 'Make steady progress between sessions by improving your automatic damage.'",
+  "'title' => 'Rebirth Guide'", "'url' => '/guides/rebirth-guide/'",
+  "'summary' => 'Choose the right moment to restart a run and accelerate future progress.'"
 )
 Assert-FileContains 'includes/render.php' @(
-  'function escape_html(', 'function render_header(', 'function render_footer(',
-  'function render_ad_slot(', "htmlspecialchars(`$value, ENT_QUOTES, 'UTF-8')",
+  'function escape_html(', 'function render_header(array $page): void', 'function render_footer(): void',
+  'function render_breadcrumbs(array $items): void',
+  "function render_card_grid(array `$items, string `$className = ''): void",
+  'function render_ad_slot(string $slotName): void', "htmlspecialchars(`$value, ENT_QUOTES, 'UTF-8')",
   '<html lang="en">', 'name="viewport"', 'rel="canonical"',
   'href="/assets/site.css"', 'class="skip-link"', 'aria-expanded="false"',
-  "if (!ADSENSE_DISPLAY_ENABLED || !`$pageEnabled)"
+  "'allow_ads'", "if (!ADSENSE_DISPLAY_ENABLED || !`$pageAllowsAds)"
 )
+Assert-FileExcludes 'includes/render.php' @('<main ', '</main>')
 Assert-FileContains 'assets/site.css' @(
   '--navy:', '--sky:', '--violet:', '--gold:', 'max-width: 72rem;',
   'max-width: 65ch;', ':focus-visible', '.skip-link',
