@@ -15,6 +15,22 @@ $sharedFiles = @(
   'assets/site.css','assets/site.js'
 )
 
+function Assert-FileContains {
+  param(
+    [string]$RelativePath,
+    [string[]]$ExpectedLiterals
+  )
+
+  $path = Join-Path $root $RelativePath
+  if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { return }
+  $source = Get-Content -Raw -LiteralPath $path
+  foreach ($literal in $ExpectedLiterals) {
+    if (-not $source.Contains($literal)) {
+      $errors.Add("Missing shared contract in ${RelativePath}: $literal")
+    }
+  }
+}
+
 foreach ($page in $pages) {
   if (-not (Test-Path -LiteralPath (Join-Path $root $page) -PathType Leaf)) { $errors.Add("Missing page: $page") }
 }
@@ -48,10 +64,40 @@ if (Test-Path -LiteralPath $playPath -PathType Leaf) {
 $configPath = Join-Path $root 'includes/config.php'
 if (Test-Path -LiteralPath $configPath -PathType Leaf) {
   $configSource = Get-Content -Raw -LiteralPath $configPath
-  if ($configSource -notmatch [regex]::Escape("ADSENSE_DISPLAY_ENABLED', false")) {
-    $errors.Add("Missing disabled AdSense display setting: ADSENSE_DISPLAY_ENABLED', false")
+  if ($configSource -notmatch 'const\s+ADSENSE_DISPLAY_ENABLED\s*=\s*false\s*;') {
+    $errors.Add('Missing disabled AdSense display setting: const ADSENSE_DISPLAY_ENABLED = false;')
   }
 }
+
+Assert-FileContains 'includes/config.php' @(
+  "const SITE_NAME = 'Tiny Heroes Tap';",
+  "const SITE_ORIGIN = 'https://tinyheroestap.com';",
+  "const ADSENSE_PUBLISHER_ID = 'ca-pub-7672795271513455';",
+  "const GAME_CLIENT_PATH = '/en/';",
+  "const CONTACT_URL = 'https://github.com/Funny-niice/ADserver/issues';"
+)
+Assert-FileContains 'includes/content.php' @(
+  '$heroes = [', '$bosses = [', '$worlds = [', '$guides = [',
+  "'Swordsman'", "'Priest'", "'Meadow Slime King'", "'Sky Throne Warden'",
+  "'Sunrise Fields'", "'Sky Throne'", "'/guides/beginners-guide/'",
+  "'/guides/upgrading-guide/'", "'/guides/boss-battles/'",
+  "'/guides/offline-rewards/'", "'/guides/rebirth-guide/'"
+)
+Assert-FileContains 'includes/render.php' @(
+  'function escape_html(', 'function render_header(', 'function render_footer(',
+  'function render_ad_slot(', "htmlspecialchars(`$value, ENT_QUOTES, 'UTF-8')",
+  '<html lang="en">', 'name="viewport"', 'rel="canonical"',
+  'href="/assets/site.css"', 'class="skip-link"', 'aria-expanded="false"',
+  "if (!ADSENSE_DISPLAY_ENABLED || !`$pageEnabled)"
+)
+Assert-FileContains 'assets/site.css' @(
+  '--navy:', '--sky:', '--violet:', '--gold:', 'max-width: 72rem;',
+  'max-width: 65ch;', ':focus-visible', '.skip-link',
+  '@media (max-width: 56rem)', 'grid-template-columns: 1fr;'
+)
+Assert-FileContains 'assets/site.js' @(
+  "querySelector('[data-nav-toggle]')", "setAttribute('aria-expanded'", 'dataset.open'
+)
 
 foreach ($page in ($pages | Where-Object { $_ -ne '404.php' })) {
   $pagePath = Join-Path $root $page
