@@ -43,6 +43,10 @@ function render_header(array $page): void
     <meta name="robots" content="<?= escape_html($page['robots']) ?>">
     <?php endif; ?>
     <meta name="google-adsense-account" content="<?= escape_html(ADSENSE_PUBLISHER_ID) ?>">
+    <?php if (ADSENSE_DISPLAY_ENABLED): ?>
+    <script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=<?= escape_html(ADSENSE_PUBLISHER_ID) ?>"
+            crossorigin="anonymous"></script>
+    <?php endif; ?>
     <link rel="canonical" href="<?= escape_html(canonical_url($page['canonical'])) ?>">
     <link rel="stylesheet" href="/assets/site.css">
     <script src="/assets/site.js" defer></script>
